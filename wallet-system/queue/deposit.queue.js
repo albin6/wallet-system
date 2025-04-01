@@ -4,7 +4,7 @@ import { Wallet } from "../models/wallet.model.js";
 
 // Redis connection configuration
 const redisConnection = {
-  host: "redis", // Change to your Redis host if not local
+  host: "localhost", // Change to your Redis host if not local
   port: 6379, // Default Redis port
 };
 
