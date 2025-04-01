@@ -1,12 +1,8 @@
-import mongoose from "mongoose";
+import mongoose from 'mongoose';
 
-const walletSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  availableBalance: { type: Number, default: 0 },
-  heldBalance: { type: Number, default: 0 },
+const adminWalletSchema = new mongoose.Schema({
+  balance: { type: Number, default: 0 }, // The total available balance controlled by admin
   updatedAt: { type: Date, default: Date.now },
 });
 
-walletSchema.index({ userId: 1 });
-
-export const Wallet = mongoose.model('Wallet', walletSchema);
+export const AdminWallet = mongoose.model('AdminWallet', adminWalletSchema);

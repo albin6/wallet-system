@@ -15,16 +15,20 @@ const AdminPayoutApproval: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [adminWallet, setAdminWallet] = useState<{ _id: string; balance: number } | null>(null)
 
   useEffect(() => {
     const fetchPendingPayouts = async () => {
       try {
-        const response = await axios.get<Transaction[]>(
-          "http://localhost:3030/api/admin/payouts"
-        );
-        setTransactions(response.data);
+        // Make sure to call the correct endpoint for fetching pending payouts
+        const response = await axios.get<{
+          transactions: Transaction[];
+          adminWallet: { _id: string; balance: number };
+        }>("http://localhost:3030/api/admin/payouts");
+        setTransactions(response.data.transactions);
+        setAdminWallet(response.data.adminWallet)
       } catch (err) {
-        setError("Failed to fetch pending payouts");
+        setError("Failed to fetch pending payouts. Please try again.");
       } finally {
         setLoading(false);
       }
@@ -38,9 +42,10 @@ const AdminPayoutApproval: React.FC = () => {
   ) => {
     try {
       const response = await axios.post(
-        "http://localhost:3030/api/admin/payout",
+        "http://localhost:3030/api/admin/payout", // Updated endpoint for payout action
         { transactionId, action }
       );
+      // Update the transaction status locally after approval/rejection
       setTransactions((prev) =>
         prev.map((tx) =>
           tx._id === transactionId
@@ -49,16 +54,28 @@ const AdminPayoutApproval: React.FC = () => {
         )
       );
     } catch (err: any) {
-      setError(err.response?.data?.error || `Failed to ${action} payout`);
+      // Handle specific error responses
+      setError(
+        err.response?.data?.error || `Failed to ${action} payout request.`
+      );
     }
   };
 
-  if (loading) return <div className="text-center text-gray-600 mt-8">Loading...</div>;
-  if (error) return <div className="text-center text-red-600 mt-8">{error}</div>;
+  if (loading)
+    return <div className="text-center text-gray-600 mt-8">Loading...</div>;
+  if (error)
+    return <div className="text-center text-red-600 mt-8">{error}</div>;
 
   return (
     <div className="max-w-5xl mx-auto mt-8 p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">Pending Payouts</h2>
+      <div>
+      <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">
+        Wallet balance : {adminWallet?.balance}
+      </h2>
+      </div>
+      <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">
+        Pending Payouts
+      </h2>
       <div className="overflow-x-auto">
         <table className="w-full text-sm text-left text-gray-700">
           <thead className="text-xs uppercase bg-gray-100 text-gray-700">
@@ -79,11 +96,15 @@ const AdminPayoutApproval: React.FC = () => {
                 <td className="px-4 py-3">{tx.receiverId}</td>
                 <td className="px-4 py-3">${tx.amount.toFixed(2)}</td>
                 <td className="px-4 py-3">
-                  <span className={`inline-block px-2 py-1 rounded-full text-xs ${
-                    tx.status === "success" ? "bg-green-100 text-green-800" :
-                    tx.status === "failed" ? "bg-red-100 text-red-800" :
-                    "bg-yellow-100 text-yellow-800"
-                  }`}>
+                  <span
+                    className={`inline-block px-2 py-1 rounded-full text-xs ${
+                      tx.status === "success"
+                        ? "bg-green-100 text-green-800"
+                        : tx.status === "failed"
+                        ? "bg-red-100 text-red-800"
+                        : "bg-yellow-100 text-yellow-800"
+                    }`}
+                  >
                     {tx.status}
                   </span>
                 </td>

@@ -18,8 +18,8 @@ interface PayoutResponse {
 
 const PayoutRequestForm: React.FC = () => {
   const navigate = useNavigate();
-  const [receiverId, setReceiverId] = useState("");
   const { id } = useSelector((state: RootState) => state.user.userData);
+  const [receiverId, setReceiverId] = useState("");
   const [amount, setAmount] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -29,16 +29,31 @@ const PayoutRequestForm: React.FC = () => {
     setError(null);
     setMessage(null);
 
+    // Validate the amount before making the request
+    if (parseFloat(amount) <= 0) {
+      setError("Amount must be greater than zero.");
+      return;
+    }
+
     try {
       const response = await axios.post<PayoutResponse>(
         "http://localhost:3030/api/user/payout",
-        { userId: id, receiverId, amount: parseFloat(amount) }
+        {
+          userId: id,
+          receiverId,
+          amount: parseFloat(amount),
+        }
       );
+
+      // Assuming the response contains a message and transaction details
       setMessage(response.data.message);
       setReceiverId("");
       setAmount("");
     } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to submit payout request");
+      // Handling different error types (e.g., insufficient balance or invalid input)
+      setError(
+        err.response?.data?.error || "Failed to submit payout request. Please try again."
+      );
     }
   };
 
@@ -49,7 +64,7 @@ const PayoutRequestForm: React.FC = () => {
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-2">
+        {/* <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">
             Receiver ID:
             <input
@@ -60,7 +75,7 @@ const PayoutRequestForm: React.FC = () => {
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
             />
           </label>
-        </div>
+        </div> */}
         <div className="space-y-2">
           <label className="block text-sm font-medium text-gray-700">
             Amount:
@@ -88,6 +103,7 @@ const PayoutRequestForm: React.FC = () => {
           Go back
         </button>
       </form>
+      
       {message && (
         <p className="mt-4 text-center text-green-600 text-sm font-medium">
           {message}

@@ -1,76 +1,75 @@
 import { Queue, Worker } from "bullmq";
+import { UserBalance } from "../models/user-balance.model.js";
+import { AdminWallet } from "../models/wallet.model.js";
 import { Transaction } from "../models/transaction.model.js";
-import { Wallet } from "../models/wallet.model.js";
 
 // Redis connection configuration
 const redisConnection = {
-  host: "localhost", // Change to your Redis host if not local
-  port: 6379, // Default Redis port
+  host: "localhost",
+  port: 6379,
 };
 
 // Create a BullMQ queue for deposits
 const depositQueue = new Queue("deposits", { connection: redisConnection });
 
-// Export function to add a deposit to the queue
+// Function to add a deposit to the queue
 export const processDeposit = async (transaction) => {
   await depositQueue.add(
     "deposit",
     { transactionId: transaction._id },
     {
-      attempts: 3, // Retry up to 3 times on failure
+      attempts: 3,
       backoff: {
         type: "exponential",
-        delay: 1000, // Start with 1s delay, increases exponentially
+        delay: 1000,
       },
     }
   );
 };
 
-// Worker to process the deposit queue
+// Worker to process deposit queue
 const depositWorker = new Worker(
   "deposits",
   async (job) => {
     const { transactionId } = job.data;
-
     const transaction = await Transaction.findById(transactionId);
     if (!transaction || transaction.status !== "processing" || transaction.type !== "deposit") {
       throw new Error("Invalid, already processed, or not a deposit transaction");
     }
 
-    const walletUpdate = await Wallet.updateOne(
-      { _id: transaction.walletId },
-      { 
-        $inc: { availableBalance: transaction.amount },
-        $set: { updatedAt: Date.now() }
-      }
-    );
-    if (walletUpdate.matchedCount === 0) {
-      throw new Error("Wallet not found");
-    }
+    const userBalance = await UserBalance.findOne({ userId: transaction.userId });
+    if (!userBalance) throw new Error("User balance not found");
 
+    // Update balances
+    userBalance.availableBalance += transaction.amount;
+    await userBalance.save();
+
+    const adminWallet = await AdminWallet.findOne();
+    if (!adminWallet) throw new Error("Admin wallet not found");
+    
+    // Reflect the deposit in the AdminWallet
+    adminWallet.balance += transaction.amount;
+    
+    await adminWallet.save();
+
+    // Update transaction status to success
     transaction.status = "success";
-    transaction.updatedAt = Date.now();
     await transaction.save();
 
     console.log(`Processed deposit ${transactionId}`);
   },
   {
     connection: redisConnection,
-    concurrency: 500,
+    concurrency: 5000,
   }
 );
 
-// Handle worker errors
+// Handle deposit job failures
 depositWorker.on("failed", async (job, error) => {
-  console.error(`Job ${job.id} failed with error: ${error.message}`);
-  const transaction = await Transaction.findById(job.data.transactionId);
-  if (transaction) {
-    transaction.status = "failed";
-    await transaction.save();
-  }
+  console.error(`Job ${job.id} failed: ${error.message}`);
 });
 
-// Handle worker completion
+// Handle deposit job completion
 depositWorker.on("completed", (job) => {
-  console.log(`Job ${job.id} completed successfully`);
+  console.log(`Deposit Job ${job.id} completed successfully`);
 });

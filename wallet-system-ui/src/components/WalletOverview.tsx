@@ -8,13 +8,12 @@ interface Wallet {
   _id: string;
   userId: string;
   availableBalance: number;
-  heldBalance: number;
+  holdBalance: number;
 }
 
 interface Transaction {
   _id: string;
   userId: string;
-  receiverId?: string;
   walletId: string;
   amount: number;
   status: "processing" | "success" | "failed";
@@ -32,15 +31,16 @@ const WalletOverview: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
-  const [depositError, setDepositError] = useState<string | null>(null);
 
   const fetchWalletData = async () => {
     try {
       const response = await axios.get(
         `http://localhost:3030/api/user/wallet/${id}`
       );
-      setWallet(response.data.wallet);
-      setTransactions(response.data.transactions);
+      // Assuming the backend response structure reflects the new schema
+      const { wallet, transactions } = response.data;
+      setWallet(wallet);
+      setTransactions(transactions);
     } catch (err) {
       setError("Failed to fetch wallet data");
     } finally {
@@ -54,20 +54,20 @@ const WalletOverview: React.FC = () => {
 
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setDepositError(null);
 
     try {
       const response = await axios.post(
         "http://localhost:3030/api/user/deposit",
         { userId: id, amount: parseFloat(depositAmount) }
       );
-      setWallet(response.data.wallet);
-      setTransactions([...response.data.transactions, ...transactions]);
+      const { walletData, transactions } = response.data;
+      setWallet(walletData);
+      setTransactions([...transactions, ...transactions]);
       setDepositAmount("");
       setIsModalOpen(false);
-      fetchWalletData()
+      fetchWalletData();  // Refresh wallet data after deposit
     } catch (err: any) {
-      // setDepositError(err.response?.data?.error || "Failed to process deposit");
+      console.log(err)
     }
   };
 
@@ -108,7 +108,7 @@ const WalletOverview: React.FC = () => {
             <span className="font-medium">Held Balance:</span>
             <span className="text-orange-600">
               {" "}
-              ${wallet.heldBalance.toFixed(2)}
+              ${wallet.holdBalance.toFixed(2)}
             </span>
           </p>
         </div>
@@ -135,7 +135,7 @@ const WalletOverview: React.FC = () => {
                 <td className="px-4 py-3 font-mono text-xs">{tx._id}</td>
                 <td className="px-4 py-3 capitalize">{tx.type}</td>
                 <td className="px-4 py-3">${tx.amount.toFixed(2)}</td>
-                <td className="px-4 py-3">{tx.receiverId || "N/A"}</td>
+                {/* <td className="px-4 py-3">{tx.receiverId || "N/A"}</td> */}
                 <td className="px-4 py-3">
                   <span
                     className={`inline-block px-2 py-1 rounded-full text-xs ${
@@ -186,9 +186,7 @@ const WalletOverview: React.FC = () => {
                   />
                 </label>
               </div>
-              {/* {depositError && (
-                <p className="text-red-600 text-sm text-center">{depositError}</p>
-              )} */}
+              
               <div className="flex justify-end space-x-2">
                 <button
                   type="button"

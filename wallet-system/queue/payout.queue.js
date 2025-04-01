@@ -1,6 +1,6 @@
 import { Queue, Worker } from 'bullmq';
 import { Transaction } from '../models/transaction.model.js';
-import { Wallet } from '../models/wallet.model.js';
+import { UserBalance } from '../models/user-balance.model.js';
 
 // Redis connection configuration
 const redisConnection = {
@@ -9,80 +9,72 @@ const redisConnection = {
 };
 
 // Create a BullMQ queue for payouts
-const payoutQueue = new Queue('payouts', { connection: redisConnection });
-
-// Timeout constant
+const payoutQueue = new Queue("payouts", { connection: redisConnection });
 const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
 // Function to add a payout to the queue
 export const processPayout = async (transaction) => {
-  await payoutQueue.add('payout', { transactionId: transaction._id }, {
+  await payoutQueue.add("payout", { transactionId: transaction._id }, {
     attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 1000,
-    },
+    backoff: { type: "exponential", delay: 1000 },
   });
 };
 
-// Worker to process the payout queue
 const payoutWorker = new Worker(
-  'payouts',
+  "payouts",
   async (job) => {
     const { transactionId } = job.data;
-
     const transaction = await Transaction.findById(transactionId);
-    if (!transaction || transaction.status !== 'processing') {
-      throw new Error('Invalid or already processed transaction');
+    if (!transaction || transaction.status !== "processing") {
+      throw new Error("Invalid or already processed transaction");
     }
 
-    const wallet = await Wallet.findById(transaction.walletId);
-    if (!wallet) {
-      throw new Error('Wallet not found');
-    }
+    const userBalance = await UserBalance.findOne({ userId: transaction.userId });
+    if (!userBalance) throw new Error("User balance not found");
 
-    const timeElapsed = Date.now() - transaction.createdAt.getTime();
-    if (timeElapsed > TIMEOUT_MS) {
-      transaction.status = 'failed';
-      wallet.heldBalance -= transaction.amount;
-      wallet.availableBalance += transaction.amount;
-      await wallet.save();
+    // Check for timeout
+    if (Date.now() - transaction.createdAt.getTime() > TIMEOUT_MS) {
+      transaction.status = "failed";
+      userBalance.holdBalance -= transaction.amount;
+      userBalance.availableBalance += transaction.amount;
+      await userBalance.save();
       await transaction.save();
       console.log(`Transaction ${transactionId} timed out and failed`);
       return;
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    // Update balances for payout
+    await userBalance.save();
 
-    transaction.status = 'processing';
-    transaction.updatedAt = Date.now();
+    // Update transaction status to success
+    transaction.status = "processing";
     await transaction.save();
 
     console.log(`Processed payout for transaction ${transactionId}`);
   },
   {
     connection: redisConnection,
-    concurrency: 500,
+    concurrency: 5000,
   }
 );
 
-// Handle worker errors
-payoutWorker.on('failed', async (job, error) => {
-  console.error(`Job ${job.id} failed with error: ${error.message}`);
+// Handle payout job failures
+payoutWorker.on("failed", async (job, error) => {
+  console.error(`Job ${job.id} failed: ${error.message}`);
   const transaction = await Transaction.findById(job.data.transactionId);
   if (transaction && job.attemptsMade >= 3) {
-    transaction.status = 'failed';
-    const wallet = await Wallet.findById(transaction.walletId);
-    if (wallet) {
-      wallet.heldBalance -= transaction.amount;
-      wallet.availableBalance += transaction.amount;
-      await wallet.save();
+    transaction.status = "failed";
+    const userBalance = await UserBalance.findOne({ userId: transaction.userId });
+    if (userBalance) {
+      userBalance.holdBalance -= transaction.amount;
+      userBalance.availableBalance += transaction.amount;
+      await userBalance.save();
     }
     await transaction.save();
   }
 });
 
-// Handle worker completion
-payoutWorker.on('completed', (job) => {
-  console.log(`Job ${job.id} completed successfully`);
+// Handle payout job completion
+payoutWorker.on("completed", (job) => {
+  console.log(`Payout Job ${job.id} completed successfully`);
 });
