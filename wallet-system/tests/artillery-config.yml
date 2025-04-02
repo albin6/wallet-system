@@ -1,0 +1,31 @@
+config:
+  target: "http://localhost:3030"
+  phases:
+    - duration: 10
+      arrivalRate: 100  # 100 requests per second = 1000 requests total
+scenarios:
+  - name: "Deposit Load"
+    weight: 60  # 60% of requests
+    flow:
+      - post:
+          url: "/api/user/deposit"
+          json:
+            userId: "test-user-1"
+            amount: 10
+          capture:
+            - json: "$.message"
+              as: "depositMessage"
+      - log: "Deposit response: {{ depositMessage }}"
+  - name: "Payout Load"
+    weight: 40  # 40% of requests
+    flow:
+      - post:
+          url: "/api/user/payout"
+          json:
+            userId: "test-user-1"
+            receiverId: "test-receiver"
+            amount: 5
+          capture:
+            - json: "$.message"
+              as: "payoutMessage"
+      - log: "Payout response: {{ payoutMessage }}"

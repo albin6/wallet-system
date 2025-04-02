@@ -157,31 +157,39 @@ export const requestPayout = async (req, res) => {
 
 export const deposit = async (req, res) => {
   const { userId, amount } = req.body;
-
   if (!userId || !amount || amount <= 0) {
-    return res
-      .status(400)
-      .json({ error: "userId and positive amount are required" });
+    return res.status(400).json({ error: "userId and positive amount are required" });
   }
 
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const wallet = await UserBalance.findOne({ userId });
-    if (!wallet) return res.status(404).json({ error: "Wallet not found" });
+    await lock.acquire(`wallet-${userId}`, async () => {
+      const wallet = await UserBalance.findOne({ userId }).session(session);
+      if (!wallet) {
+        await session.abortTransaction();
+        return res.status(404).json({ error: "Wallet not found" });
+      }
 
-    const transaction = new Transaction({
-      userId,
-      walletId: wallet._id, // reference to UserBalance
-      amount,
-      status: "processing",
-      type: "deposit",
+      const transaction = new Transaction({
+        userId,
+        walletId: wallet._id,
+        amount,
+        status: "processing",
+        type: "deposit",
+      });
+      await transaction.save({ session });
+
+      await session.commitTransaction();
+      await processDeposit(transaction);
+
+      res.status(202).json({ transaction, message: "Deposit request queued" });
     });
-    await transaction.save();
-
-    await processDeposit(transaction);
-
-    res.status(202).json({ transaction, message: "Deposit request queued" });
   } catch (error) {
-    console.error(`Deposit error: ${error.stack}`);
+    await session.abortTransaction();
     res.status(500).json({ error: error.message });
+  } finally {
+    session.endSession();
   }
 };

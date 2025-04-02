@@ -1,6 +1,4 @@
 import { Queue, Worker } from "bullmq";
-import { UserBalance } from "../models/user-balance.model.js";
-import { AdminWallet } from "../models/wallet.model.js";
 import { Transaction } from "../models/transaction.model.js";
 
 // Redis connection configuration
@@ -37,22 +35,6 @@ const depositWorker = new Worker(
       throw new Error("Invalid, already processed, or not a deposit transaction");
     }
 
-    // const userBalance = await UserBalance.findOne({ userId: transaction.userId });
-    // if (!userBalance) throw new Error("User balance not found");
-
-    // // Update balances
-    // userBalance.availableBalance += transaction.amount;
-    // await userBalance.save();
-
-    // const adminWallet = await AdminWallet.findOne();
-    // if (!adminWallet) throw new Error("Admin wallet not found");
-    
-    // // Reflect the deposit in the AdminWallet
-    // adminWallet.balance += transaction.amount;
-    
-    // await adminWallet.save();
-
-    // Update transaction status to success
     transaction.status = "processing";
     await transaction.save();
 
