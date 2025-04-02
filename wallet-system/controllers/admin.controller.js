@@ -49,35 +49,46 @@ export const handlePayout = async (req, res) => {
       }
 
       if (action === "approve") {
-        // const receiverBalance = await UserBalance.findOne({
-        //   userId: transaction.receiverId,
-        // }).session(session);
-        // if (!receiverBalance) {
-        //   await session.abortTransaction();
-        //   return res
-        //     .status(404)
-        //     .json({ error: "Receiver's balance not found" });
-        // }
-
-        // Deduct amount from the sender's hold balance and update available balance
-        senderBalance.holdBalance -= transaction.amount;
-        await AdminWallet.findOneAndUpdate(
-          {},
-          {
-            $inc: { balance: -transaction.amount },
-          }
-        );
-
-        // Credit the receiver's available balance
-        // receiverBalance.availableBalance += transaction.amount;
-        // await receiverBalance.save({ session });
+        if (transaction.type === "deposit") {
+          const [adminWallet, userWallet] = await Promise.all([
+            AdminWallet.findOne(),
+            UserBalance.findById(transaction.walletId)
+          ]);
+        
+          if (!adminWallet) throw new Error("Admin wallet not found");
+          if (!userWallet) throw new Error("User wallet not found");
+        
+          // Update balances
+          adminWallet.balance += transaction.amount;
+          userWallet.availableBalance += transaction.amount;
+        
+          // Save both wallets concurrently
+          await Promise.all([adminWallet.save(), userWallet.save()]);
+        } else if (transaction.type === "payout") {
+          senderBalance.holdBalance -= transaction.amount;
+          await AdminWallet.findOneAndUpdate(
+            {},
+            {
+              $inc: { balance: -transaction.amount },
+            }
+          );
+        }
 
         // Update transaction status to success
         transaction.status = "success";
       } else if (action === "reject") {
-        // Refund the amount to the sender's available balance
-        senderBalance.holdBalance -= transaction.amount;
-        senderBalance.availableBalance += transaction.amount;
+        if (transaction.type === "deposit") {
+          // await AdminWallet.findOneAndUpdate(
+          //   {},
+          //   {
+          //     $inc: { balance: -transaction.amount },
+          //   }
+          // );
+        } else if (transaction.type === "payout") {
+          // Refund the amount to the sender's available balance
+          senderBalance.holdBalance -= transaction.amount;
+          senderBalance.availableBalance += transaction.amount;
+        }
 
         // Mark transaction as failed
         transaction.status = "failed";

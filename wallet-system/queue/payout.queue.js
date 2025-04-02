@@ -4,8 +4,8 @@ import { UserBalance } from '../models/user-balance.model.js';
 
 // Redis connection configuration
 const redisConnection = {
-  host: 'localhost',
-  port: 6379,
+  host: process.env.REDIS_HOST || "redis",
+  port: process.env.REDIS_PORT || 6379,
 };
 
 // Create a BullMQ queue for payouts

@@ -5,8 +5,8 @@ import { Transaction } from "../models/transaction.model.js";
 
 // Redis connection configuration
 const redisConnection = {
-  host: "localhost",
-  port: 6379,
+  host: process.env.REDIS_HOST || "redis",
+  port: process.env.REDIS_PORT || 6379,
 };
 
 // Create a BullMQ queue for deposits
@@ -37,23 +37,23 @@ const depositWorker = new Worker(
       throw new Error("Invalid, already processed, or not a deposit transaction");
     }
 
-    const userBalance = await UserBalance.findOne({ userId: transaction.userId });
-    if (!userBalance) throw new Error("User balance not found");
+    // const userBalance = await UserBalance.findOne({ userId: transaction.userId });
+    // if (!userBalance) throw new Error("User balance not found");
 
-    // Update balances
-    userBalance.availableBalance += transaction.amount;
-    await userBalance.save();
+    // // Update balances
+    // userBalance.availableBalance += transaction.amount;
+    // await userBalance.save();
 
-    const adminWallet = await AdminWallet.findOne();
-    if (!adminWallet) throw new Error("Admin wallet not found");
+    // const adminWallet = await AdminWallet.findOne();
+    // if (!adminWallet) throw new Error("Admin wallet not found");
     
-    // Reflect the deposit in the AdminWallet
-    adminWallet.balance += transaction.amount;
+    // // Reflect the deposit in the AdminWallet
+    // adminWallet.balance += transaction.amount;
     
-    await adminWallet.save();
+    // await adminWallet.save();
 
     // Update transaction status to success
-    transaction.status = "success";
+    transaction.status = "processing";
     await transaction.save();
 
     console.log(`Processed deposit ${transactionId}`);
