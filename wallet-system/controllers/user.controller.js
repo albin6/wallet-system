@@ -74,7 +74,7 @@ export const getWallet = async (req, res) => {
 
 export const requestPayout = async (req, res) => {
   const { userId, receiverId = 0, amount } = req.body;
-  const DAILY_LIMIT = 10000;
+  // const DAILY_LIMIT = 10000;
 
   if (userId === receiverId) {
     return res
@@ -98,23 +98,23 @@ export const requestPayout = async (req, res) => {
       }
 
       // Check Daily Limit inside the lock
-      const today = new Date().setHours(0, 0, 0, 0);
-      const dailyTotal = await Transaction.aggregate([
-        {
-          $match: {
-            walletId: wallet._id,
-            createdAt: { $gte: new Date(today) },
-            status: { $ne: "failed" },
-          },
-        },
-        { $group: { _id: null, total: { $sum: "$amount" } } },
-      ]).session(session);
+      // const today = new Date().setHours(0, 0, 0, 0);
+      // const dailyTotal = await Transaction.aggregate([
+      //   {
+      //     $match: {
+      //       walletId: wallet._id,
+      //       createdAt: { $gte: new Date(today) },
+      //       status: { $ne: "failed" },
+      //     },
+      //   },
+      //   { $group: { _id: null, total: { $sum: "$amount" } } },
+      // ]).session(session);
 
-      const usedAmount = dailyTotal[0]?.total || 0;
-      if (usedAmount + amount > DAILY_LIMIT) {
-        await session.abortTransaction();
-        return res.status(400).json({ error: "Daily payout limit exceeded" });
-      }
+      // const usedAmount = dailyTotal[0]?.total || 0;
+      // if (usedAmount + amount > DAILY_LIMIT) {
+      //   await session.abortTransaction();
+      //   return res.status(400).json({ error: "Daily payout limit exceeded" });
+      // }
 
       // Check available balance
       if (wallet.availableBalance < amount) {
