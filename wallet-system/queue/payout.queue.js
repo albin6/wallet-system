@@ -1,6 +1,7 @@
-import { Queue, Worker } from 'bullmq';
-import { Transaction } from '../models/transaction.model.js';
-import { UserBalance } from '../models/user-balance.model.js';
+import { Queue, Worker } from "bullmq";
+import { Transaction } from "../models/transaction.model.js";
+import { UserBalance } from "../models/user-balance.model.js";
+import { AdminWallet } from "../models/wallet.model.js";
 
 // Redis connection configuration
 const redisConnection = {
@@ -10,14 +11,18 @@ const redisConnection = {
 
 // Create a BullMQ queue for payouts
 const payoutQueue = new Queue("payouts", { connection: redisConnection });
-const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+// const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
 // Function to add a payout to the queue
 export const processPayout = async (transaction) => {
-  await payoutQueue.add("payout", { transactionId: transaction._id }, {
-    attempts: 3,
-    backoff: { type: "exponential", delay: 1000 },
-  });
+  await payoutQueue.add(
+    "payout",
+    { transactionId: transaction._id },
+    {
+      attempts: 3,
+      backoff: { type: "exponential", delay: 1000 },
+    }
+  );
 };
 
 const payoutWorker = new Worker(
@@ -29,25 +34,35 @@ const payoutWorker = new Worker(
       throw new Error("Invalid or already processed transaction");
     }
 
-    const userBalance = await UserBalance.findOne({ userId: transaction.userId });
-    if (!userBalance) throw new Error("User balance not found");
+    const userBalance = await UserBalance.findOne({
+      userId: transaction.userId,
+    });
+    // if (!userBalance) throw new Error("User balance not found");
 
-    // Check for timeout
-    if (Date.now() - transaction.createdAt.getTime() > TIMEOUT_MS) {
-      transaction.status = "failed";
-      userBalance.holdBalance -= transaction.amount;
-      userBalance.availableBalance += transaction.amount;
-      await userBalance.save();
-      await transaction.save();
-      console.log(`Transaction ${transactionId} timed out and failed`);
-      return;
-    }
+    // // Check for timeout
+    // if (Date.now() - transaction.createdAt.getTime() > TIMEOUT_MS) {
+    //   transaction.status = "failed";
+    //   userBalance.holdBalance -= transaction.amount;
+    //   userBalance.availableBalance += transaction.amount;
+    //   await userBalance.save();
+    //   await transaction.save();
+    //   console.log(`Transaction ${transactionId} timed out and failed`);
+    //   return;
+    // }
 
+    // userBalance.holdBalance -= transaction.amount;
+
+    await AdminWallet.findOneAndUpdate(
+      {},
+      {
+        $inc: { balance: -transaction.amount },
+      }
+    );
     // Update balances for payout
     await userBalance.save();
 
     // Update transaction status to success
-    transaction.status = "processing";
+    transaction.status = "success";
     await transaction.save();
 
     console.log(`Processed payout for transaction ${transactionId}`);
@@ -64,7 +79,9 @@ payoutWorker.on("failed", async (job, error) => {
   const transaction = await Transaction.findById(job.data.transactionId);
   if (transaction && job.attemptsMade >= 3) {
     transaction.status = "failed";
-    const userBalance = await UserBalance.findOne({ userId: transaction.userId });
+    const userBalance = await UserBalance.findOne({
+      userId: transaction.userId,
+    });
     if (userBalance) {
       userBalance.holdBalance -= transaction.amount;
       userBalance.availableBalance += transaction.amount;

@@ -10,13 +10,13 @@ export let options = {
       duration: '10s',
       preAllocatedVUs: 500,
     },
-    // payouts: {
-    //   executor: 'constant-arrival-rate',
-    //   rate: 300,      // 300 requests per second
-    //   timeUnit: '1s',
-    //   duration: '10s',
-    //   preAllocatedVUs: 300,
-    // },
+    payouts: {
+      executor: 'constant-arrival-rate',
+      rate: 300,      // 300 requests per second
+      timeUnit: '1s',
+      duration: '10s',
+      preAllocatedVUs: 300,
+    },
     // burst: {
     //   executor: 'constant-arrival-rate',
     //   rate: 1000,     // 1000 requests per second
@@ -36,12 +36,12 @@ export default function () {
     amount: 100,
     requestId: `${Date.now()}-${Math.random()}`,
   });
-  // const payoutPayload = JSON.stringify({
-  //   userId: "67ecfe442c68fb4eccea35f6",
-  //   receiverId: "otherUser",
-  //   amount: 50,
-  //   requestId: `${Date.now()}-${Math.random()}`,
-  // });
+  const payoutPayload = JSON.stringify({
+    userId: "67ecfe442c68fb4eccea35f6",
+    receiverId: "otherUser",
+    amount: 50,
+    requestId: `${Date.now()}-${Math.random()}`,
+  });
 
   const depositRes = http.post('http://localhost:3030/api/user/deposit', depositPayload, {
     headers: { 'Content-Type': 'application/json' },
@@ -50,12 +50,12 @@ export default function () {
     'Deposit success': (r) => r.status === 202,
   }) || console.log(`Deposit failed: ${depositRes.status} - ${depositRes.body}`);
 
-  // const payoutRes = http.post('http://localhost:3030/api/user/payout', payoutPayload, {
-  //   headers: { 'Content-Type': 'application/json' },
-  // });
-  // check(payoutRes, {
-  //   'Payout success': (r) => r.status === 201,
-  // }) || console.log(`Payout failed: ${payoutRes.status} - ${payoutRes.body}`);
+  const payoutRes = http.post('http://localhost:3030/api/user/payout', payoutPayload, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  check(payoutRes, {
+    'Payout success': (r) => r.status === 201,
+  }) || console.log(`Payout failed: ${payoutRes.status} - ${payoutRes.body}`);
 
   sleep(0.1);
 }

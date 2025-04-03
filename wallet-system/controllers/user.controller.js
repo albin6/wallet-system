@@ -124,7 +124,7 @@ export const requestPayout = async (req, res) => {
 
       // Update Wallet
       wallet.availableBalance -= amount;
-      wallet.holdBalance += amount;
+      // wallet.holdBalance += amount;
       await wallet.save({ session });
 
       // Create Transaction
